@@ -355,8 +355,92 @@ def update_feature_toggle_dates(package_name, feature_id):
 
 
 
+#  7. Update a feature toggle name by id for package name
+@feature_toggle_blueprint.route('/feature-toggle/<package_name>/<feature_id>/update-name', methods=['PUT'])
+def update_feature_toggle_name(package_name, feature_id):
+    """
+    Update the name of a feature toggle
+    --- 
+    parameters:
+        - name: package_name
+          in: path
+          type: string
+          required: true
+          description: Name of the package
+        - name: feature_id
+          in: path
+          type: string
+          required: true
+          description: ID of the feature toggle to update
+        - name: updated_data
+          in: body
+          required: true
+          description: The new name for the feature toggle
+          schema:
+              id: UpdateNameData
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: New name for the feature toggle
+    responses:
+        200:
+            description: Name updated successfully
+        400:
+            description: Invalid request (missing or empty name)
+        404:
+            description: Feature toggle not found
+        500:
+            description: Database error
+    """
+    # Get the request data containing the new name
+    data = request.json
+    
+    # Validate the request body
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Name is required'}), 400
+        
+    new_name = data.get('name')
+    
+    # Validate that the new name is not empty
+    if not new_name or not new_name.strip():
+        return jsonify({'error': 'Name cannot be empty'}), 400
 
-# 7. Delete all feature toggles for package name
+    # Get database connection
+    db = MongoConnectionHolder.get_db()
+    if db is None:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    # Get the collection for this package
+    package_collection = db[package_name]
+    if package_collection is None:
+        return jsonify({'error': 'Package not found'}), 404
+
+    # Find and update the feature toggle
+    feature = package_collection.find_one({'_id': feature_id})
+    if not feature:
+        return jsonify({'error': 'Feature toggle not found'}), 404
+
+    # Update the name and the updated_at timestamp
+    try:
+        package_collection.update_one(
+            {'_id': feature_id},
+            {
+                '$set': {
+                    'name': new_name,
+                    'updated_at': datetime.now()
+                }
+            }
+        )
+        return jsonify({'message': 'Name updated successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to update name: {str(e)}'}), 500
+
+
+
+
+# 8. Delete all feature toggles for package name
 @feature_toggle_blueprint.route('/feature-toggles/<package_name>', methods=['DELETE'])
 def delete_all_feature_toggles(package_name):
     """
@@ -389,7 +473,7 @@ def delete_all_feature_toggles(package_name):
 
 
 
-# 8. Delete all items
+# 9. Delete all items
 @feature_toggle_blueprint.route('/feature-toggles', methods=['DELETE'])
 def delete_all_feature_toggles_all_packages():
     """
