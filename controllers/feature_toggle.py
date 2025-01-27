@@ -439,8 +439,86 @@ def update_feature_toggle_name(package_name, feature_id):
 
 
 
+# 8. Delete a feature toggle by id for package name
+@feature_toggle_blueprint.route('/feature-toggle/<package_name>/<feature_id>', methods=['DELETE'])
+def delete_feature_toggle(package_name, feature_id):
+    """
+    Delete a specific feature toggle by its ID
+    --- 
+    parameters:
+        - name: package_name
+          in: path
+          type: string
+          required: true
+          description: Name of the package containing the feature toggle
+        - name: feature_id
+          in: path
+          type: string
+          required: true
+          description: ID of the feature toggle to delete
+    responses:
+        200:
+            description: Feature toggle successfully deleted
+            schema:
+                properties:
+                    message:
+                        type: string
+                        description: Success message
+        404:
+            description: Feature toggle or package not found
+            schema:
+                properties:
+                    error:
+                        type: string
+                        description: Error message
+        500:
+            description: Database error occurred
+            schema:
+                properties:
+                    error:
+                        type: string
+                        description: Error message
+    """
+    # First, we attempt to get a database connection
+    db = MongoConnectionHolder.get_db()
+    if db is None:
+        return jsonify({'error': 'Database not initialized'}), 500
 
-# 8. Delete all feature toggles for package name
+    # Get the collection for this package
+    package_collection = db[package_name]
+    if package_collection is None:
+        return jsonify({'error': 'Package not found'}), 404
+
+    # Try to find the feature toggle first to confirm it exists
+    feature = package_collection.find_one({'_id': feature_id})
+    if not feature:
+        return jsonify({'error': 'Feature toggle not found'}), 404
+
+    try:
+        # Delete the specific feature toggle
+        result = package_collection.delete_one({'_id': feature_id})
+        
+        # Check if the deletion was successful
+        if result.deleted_count == 1:
+            return jsonify({
+                'message': f'Feature toggle {feature_id} successfully deleted'
+            }), 200
+        else:
+            # This case would be rare but could happen in concurrent operations
+            return jsonify({
+                'error': 'Feature toggle could not be deleted'
+            }), 500
+            
+    except Exception as e:
+        # Log the error for debugging purposes
+        print(f"Error deleting feature toggle: {str(e)}")
+        return jsonify({
+            'error': 'An error occurred while deleting the feature toggle'
+        }), 500
+
+
+
+# 9. Delete all feature toggles for package name
 @feature_toggle_blueprint.route('/feature-toggles/<package_name>', methods=['DELETE'])
 def delete_all_feature_toggles(package_name):
     """
@@ -472,8 +550,7 @@ def delete_all_feature_toggles(package_name):
 
 
 
-
-# 9. Delete all items
+# 10. Delete all items ( for testing purposes )
 @feature_toggle_blueprint.route('/feature-toggles', methods=['DELETE'])
 def delete_all_feature_toggles_all_packages():
     """
